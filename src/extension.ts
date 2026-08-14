@@ -86,7 +86,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     const isUiSide = context.extension.extensionKind === vscode.ExtensionKind.UI;
     const remoteName = vscode.env.remoteName;
     logger = new Logger(isUiSide ? 'CRI Container Attach (local)' : 'CRI Container Attach');
-    logger.info(`=== CRI Container Attach v0.12.0 activating (id=${context.extension.id}, kind=${isUiSide ? 'UI' : 'workspace'}, remoteName=${remoteName || 'local'}) ===`);
+    logger.info(`=== CRI Container Attach v0.12.1 activating (id=${context.extension.id}, kind=${isUiSide ? 'UI' : 'workspace'}, remoteName=${remoteName || 'local'}) ===`);
 
     if (isUiSide) {
         // UI side of any window (local, Remote-SSH, or the cri-container window):
