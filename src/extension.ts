@@ -86,7 +86,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     const isUiSide = context.extension.extensionKind === vscode.ExtensionKind.UI;
     const remoteName = vscode.env.remoteName;
     logger = new Logger(isUiSide ? 'CRI Container Attach (local)' : 'CRI Container Attach');
-    logger.info(`=== CRI Container Attach v0.13.0 activating (id=${context.extension.id}, kind=${isUiSide ? 'UI' : 'workspace'}, remoteName=${remoteName || 'local'}) ===`);
+    logger.info(`=== CRI Container Attach v0.13.1 activating (id=${context.extension.id}, kind=${isUiSide ? 'UI' : 'workspace'}, remoteName=${remoteName || 'local'}) ===`);
 
     if (isUiSide) {
         // UI side of any window (local, Remote-SSH, or the cri-container window):
@@ -175,11 +175,17 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
                 // The SSH host exactly as the user addresses it (their ~/.ssh/config,
                 // incl. ProxyJump, applies). The attached window opens its own
                 // `ssh -W` pipe to the container, so it survives this window closing.
-                const wsAuthority = vscode.workspace.workspaceFolders?.[0]?.uri.authority || '';
-                const sshTarget = wsAuthority.replace(/^ssh-remote\+/, '');
+                // Window authority works even with no folder open; folder is fallback
+                const envAuthority = (vscode.env as { remoteAuthority?: string }).remoteAuthority;
+                const rawAuthority =
+                    envAuthority ||
+                    vscode.workspace.workspaceFolders?.[0]?.uri.authority ||
+                    '';
+                const sshTarget = rawAuthority.replace(/^ssh-remote\+/, '');
                 if (!sshTarget) {
                     throw new Error('Could not determine the SSH host of this window; re-open the folder via Remote-SSH');
                 }
+                logger.info(`SSH target for container window: ${sshTarget}`);
 
                 // Optional fallback path for VS Code builds without managed connections
                 const localPort = await vscode.window.withProgress(
