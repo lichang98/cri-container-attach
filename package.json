@@ -1,0 +1,78 @@
+{
+  "name": "cri-container-attach",
+  "displayName": "CRI Container Attach",
+  "description": "Attach VS Code to CRI-based containers (containerd/CRI-O) via crictl.",
+  "version": "0.12.0",
+  "publisher": "local",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "enabledApiProposals": [
+    "resolvers"
+  ],
+  "extensionKind": [
+    "workspace",
+    "ui"
+  ],
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "*",
+    "onResolveRemoteAuthority:cri-container",
+    "onResolveAuthority:cri-container"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "cri-container.attach",
+        "title": "Attach to CRI Container",
+        "category": "CRI Container"
+      },
+      {
+        "command": "cri-container.listContainers",
+        "title": "List CRI Containers",
+        "category": "CRI Container"
+      },
+      {
+        "command": "cri-container.execInto",
+        "title": "Exec into CRI Container (Terminal)",
+        "category": "CRI Container"
+      }
+    ],
+    "configuration": {
+      "title": "CRI Container Attach",
+      "properties": {
+        "cri-container.crictlPath": {
+          "type": "string",
+          "default": "crictl",
+          "description": "Path to crictl binary on the remote host"
+        },
+        "cri-container.runtimeEndpoint": {
+          "type": "string",
+          "default": "unix:///run/containerd/containerd.sock",
+          "description": "Container runtime endpoint socket path"
+        },
+        "cri-container.defaultShell": {
+          "type": "string",
+          "default": "/bin/sh",
+          "description": "Default shell for container terminal"
+        },
+        "cri-container.serverInstallPath": {
+          "type": "string",
+          "default": "/root/.vscode-server",
+          "description": "Base path for vscode-server installation inside containers"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "compile": "tsc -p ./"
+  },
+  "devDependencies": {
+    "@types/node": "^26.2.0",
+    "@types/vscode": "^1.125.0",
+    "typescript": "5.3"
+  }
+}
