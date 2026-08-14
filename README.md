@@ -47,9 +47,11 @@ Attach flow:
    fallback for VS Code builds without managed-connection support.
 
 The password story: the window's ssh is tried **passwordless first** (keys or
-`ControlMaster`). If your host needs a password, you are prompted once per window and
-the password is handed to `ssh` via `SSH_ASKPASS` — never written to disk or config.
-For a fully prompt-free experience, set up key auth (`ssh-copy-id`).
+`ControlMaster`). If your host needs a password, you are prompted **once** and the
+password is remembered in VS Code's `SecretStorage` (the OS keychain) — later container
+windows reuse it across reloads and restarts. It is handed to `ssh` via `SSH_ASKPASS`,
+never written to disk or config, and dropped automatically if it stops working. For a
+fully prompt-free experience, set up key auth (`ssh-copy-id`).
 
 ## Install
 
@@ -110,7 +112,8 @@ slice of the `resolvers` proposed API that is used.
 - Requires the `resolvers` proposed API, enabled via the `product.json` patch — if a VS
   Code update replaces `product.json`, re-run attach once and restart to re-patch.
 - The attached window dials the node itself with `ssh -W`; if that host uses password
-  auth you are prompted once per window (key auth or `ControlMaster` avoids the prompt).
+  auth you are prompted once and the password is remembered (`SecretStorage`); key auth
+  or `ControlMaster` avoids the prompt entirely.
   TCP forwarding must be allowed on the node's sshd (`AllowTcpForwarding`).
 - Stale servers from previous attach runs inside a container are killed automatically on
   the next attach to that container.

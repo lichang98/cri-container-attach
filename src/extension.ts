@@ -8,7 +8,7 @@ import { Logger } from './logger';
 import { CriClient } from './criClient';
 import { ServerBootstrap } from './serverBootstrap';
 import { pickContainer } from './containerPicker';
-import { CriContainerResolver, containerNameFromAuthority } from './resolver';
+import { CriContainerResolver, containerNameFromAuthority, setSecretStorage } from './resolver';
 import { forwardRemotePort, closeRelays } from './forwarder';
 
 let logger: Logger;
@@ -86,7 +86,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     const isUiSide = context.extension.extensionKind === vscode.ExtensionKind.UI;
     const remoteName = vscode.env.remoteName;
     logger = new Logger(isUiSide ? 'CRI Container Attach (local)' : 'CRI Container Attach');
-    logger.info(`=== CRI Container Attach v0.13.1 activating (id=${context.extension.id}, kind=${isUiSide ? 'UI' : 'workspace'}, remoteName=${remoteName || 'local'}) ===`);
+    logger.info(`=== CRI Container Attach v0.13.2 activating (id=${context.extension.id}, kind=${isUiSide ? 'UI' : 'workspace'}, remoteName=${remoteName || 'local'}) ===`);
 
     if (isUiSide) {
         // UI side of any window (local, Remote-SSH, or the cri-container window):
@@ -101,6 +101,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         const registerFn = (vscode.workspace as any).registerRemoteAuthorityResolver;
         if (typeof registerFn === 'function') {
             try {
+                setSecretStorage(context.secrets);
                 context.subscriptions.push(registerFn('cri-container', new CriContainerResolver(logger)));
                 registered = true;
                 logger.info('Resolver registered successfully');

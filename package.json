@@ -2,7 +2,7 @@
   "name": "cri-container-attach",
   "displayName": "CRI Container Attach",
   "description": "Attach VS Code to CRI-based containers (containerd/CRI-O) via crictl.",
-  "version": "0.13.1",
+  "version": "0.13.2",
   "publisher": "local",
   "engines": {
     "vscode": "^1.85.0"

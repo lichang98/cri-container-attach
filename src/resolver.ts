@@ -57,6 +57,18 @@ function tcpConnectable(port: number, timeoutMs = 2000): Promise<boolean> {
 type AuthMode = { mode: 'passwordless' } | { mode: 'password'; password: string };
 const authCache = new Map<string, AuthMode>();
 
+// Set at activation; persists entered passwords across window reloads/restarts
+// (VS Code SecretStorage is backed by the OS keychain). Per-extension-id store,
+// so at most one prompt per extension that ever resolves an authority.
+let secrets: vscode.SecretStorage | undefined;
+export function setSecretStorage(s: vscode.SecretStorage): void {
+    secrets = s;
+}
+
+function secretKey(sshTarget: string): string {
+    return `ssh-password:${sshTarget}`;
+}
+
 function baseSshArgs(targetHost: string, serverPort: number, sshTarget: string): string[] {
     return [
         '-o', 'ConnectTimeout=15',
@@ -143,8 +155,9 @@ function sshMessagePassing(a: ContainerAuthority, logger: Logger): Promise<vscod
         child.on('close', (code) => {
             cleanup();
             if (/permission denied/i.test(stderr)) {
-                // Cached password went stale: drop it so the next resolve re-prompts
+                // Cached password went stale: drop it everywhere so the next resolve re-prompts
                 authCache.delete(a.sshTarget);
+                void secrets?.delete(secretKey(a.sshTarget));
             }
             closed.fire(code === null ? new Error(`ssh exited (${stderr.trim()})`) : undefined);
             ended.fire();
@@ -169,6 +182,13 @@ function sshMessagePassing(a: ContainerAuthority, logger: Logger): Promise<vscod
 async function ensureAuth(a: ContainerAuthority, logger: Logger): Promise<'ready' | 'cancel'> {
     if (authCache.has(a.sshTarget)) { return 'ready'; }
 
+    const stored = await secrets?.get(secretKey(a.sshTarget));
+    if (stored) {
+        authCache.set(a.sshTarget, { mode: 'password', password: stored });
+        logger.info(`ssh to ${a.sshTarget}: using password remembered from a previous session`);
+        return 'ready';
+    }
+
     const probe = await probePasswordless(a.targetHost, a.serverPort, a.sshTarget, logger);
     if (probe === 'ok') {
         authCache.set(a.sshTarget, { mode: 'passwordless' });
@@ -187,11 +207,12 @@ async function ensureAuth(a: ContainerAuthority, logger: Logger): Promise<'ready
 
     const password = await vscode.window.showInputBox({
         password: true,
-        prompt: `SSH password for ${a.sshTarget} — used only for this container window's connection`,
+        prompt: `SSH password for ${a.sshTarget} — remembered for future container windows (set up key auth to avoid this)`,
         ignoreFocusOut: true,
     });
     if (!password) { return 'cancel'; }
     authCache.set(a.sshTarget, { mode: 'password', password });
+    void secrets?.store(secretKey(a.sshTarget), password);
     return 'ready';
 }
 
