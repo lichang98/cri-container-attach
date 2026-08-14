@@ -38,13 +38,18 @@ Attach flow:
    with a random connection token, bound to `0.0.0.0`.
 3. Resolve the container/pod IP (container inspect → pod sandbox inspect → `hostname -i`
    fallback; host-networked containers fall back to `127.0.0.1`).
-4. If the target is not loopback, a relay on the node's `127.0.0.1` bridges to the pod IP,
-   then `vscode.env.asExternalUri` forwards it over Remote-SSH to your machine.
-5. Open `vscode-remote://cri-container+<localPort>-<token>-<containerName-hex>/` in a new
-   window; the resolver extension connects it to the container's server.
+4. Open `vscode-remote://cri-container+<token>-<port>-…/` in a new window. The resolver
+   extension in that window returns a **managed connection**: it spawns its own
+   `ssh -W <podIP>:<port> <ssh-target>` from your desktop (your `~/.ssh/config`,
+   including `ProxyJump`, applies), so the attached window owns its connection and the
+   Remote-SSH window that ran the attach can be closed.
+5. A forwarded port over the existing Remote-SSH session is still prepared as a
+   fallback for VS Code builds without managed-connection support.
 
-No passwords are ever handled by the extension — everything rides the SSH connection that
-Remote-SSH already maintains.
+The password story: the window's ssh is tried **passwordless first** (keys or
+`ControlMaster`). If your host needs a password, you are prompted once per window and
+the password is handed to `ssh` via `SSH_ASKPASS` — never written to disk or config.
+For a fully prompt-free experience, set up key auth (`ssh-copy-id`).
 
 ## Install
 
@@ -65,9 +70,9 @@ Steps:
 4. On first activation the extension whitelists itself for the `resolvers` proposed API by
    patching VS Code's `product.json` (`extensionEnabledApiProposals`). **Fully quit VS
    Code (Cmd+Q / exit) and relaunch once** — this is read only at startup.
-5. Run **CRI Container: Attach**, pick a container, and a new window opens attached to it.
-   Keep the Remote-SSH window open while using the container window — the tunnel and relay
-   live there.
+5. Run **CRI Container: Attach**, pick a container, and a new window opens attached to
+   it. The new window brings its own SSH connection — the Remote-SSH window that ran the
+   attach can be closed once the container window is up.
 
 ## Usage
 
@@ -104,7 +109,9 @@ slice of the `resolvers` proposed API that is used.
 - Only containers on the node you are SSH'd into (that is where `crictl` runs).
 - Requires the `resolvers` proposed API, enabled via the `product.json` patch — if a VS
   Code update replaces `product.json`, re-run attach once and restart to re-patch.
-- The attached window's tunnel depends on the originating Remote-SSH window staying open.
+- The attached window dials the node itself with `ssh -W`; if that host uses password
+  auth you are prompted once per window (key auth or `ControlMaster` avoids the prompt).
+  TCP forwarding must be allowed on the node's sshd (`AllowTcpForwarding`).
 - Stale servers from previous attach runs inside a container are killed automatically on
   the next attach to that container.
 

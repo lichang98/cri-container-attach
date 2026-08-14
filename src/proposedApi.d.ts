@@ -6,11 +6,29 @@ declare module 'vscode' {
         constructor(host: string, port: number, connectionToken?: string);
     }
 
-    export type ResolverResult = ResolvedAuthority;
+    export interface ManagedMessagePassing {
+        readonly onDidReceiveMessage: Event<Uint8Array>;
+        readonly onDidClose: Event<Error | undefined>;
+        readonly onDidEnd: Event<void>;
+        send: (data: Uint8Array) => void;
+        end: () => void;
+        drain?: () => Thenable<void>;
+    }
+
+    export class ManagedResolvedAuthority {
+        readonly makeConnection: () => Thenable<ManagedMessagePassing>;
+        readonly connectionToken: string | undefined;
+        constructor(makeConnection: () => Thenable<ManagedMessagePassing>, connectionToken?: string);
+    }
+
+    export type ResolverResult = ResolvedAuthority | ManagedResolvedAuthority;
+
+    export interface RemoteAuthorityResolverContext {
+        resolveAttempt: number;
+    }
 
     export interface RemoteAuthorityResolver {
-        resolve(authority: string): ResolverResult | Thenable<ResolverResult>;
-        getLabel?(authorityPrefix: string): string;
+        resolve(authority: string, context?: RemoteAuthorityResolverContext): ResolverResult | Thenable<ResolverResult>;
     }
 
     export interface ResourceLabelFormatting {

@@ -86,7 +86,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     const isUiSide = context.extension.extensionKind === vscode.ExtensionKind.UI;
     const remoteName = vscode.env.remoteName;
     logger = new Logger(isUiSide ? 'CRI Container Attach (local)' : 'CRI Container Attach');
-    logger.info(`=== CRI Container Attach v0.12.1 activating (id=${context.extension.id}, kind=${isUiSide ? 'UI' : 'workspace'}, remoteName=${remoteName || 'local'}) ===`);
+    logger.info(`=== CRI Container Attach v0.13.0 activating (id=${context.extension.id}, kind=${isUiSide ? 'UI' : 'workspace'}, remoteName=${remoteName || 'local'}) ===`);
 
     if (isUiSide) {
         // UI side of any window (local, Remote-SSH, or the cri-container window):
@@ -172,28 +172,44 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
                 const targetHost = ip || '127.0.0.1';
                 logger.info(`Container target: ${targetHost}:${port}`);
 
-                const localPort = await vscode.window.withProgress(
-                    { location: vscode.ProgressLocation.Notification, title: 'Forwarding port over Remote-SSH...', cancellable: false },
-                    () => forwardRemotePort(targetHost, port, logger),
-                );
-                logger.info(`Forwarded: 127.0.0.1:${localPort} -> ${targetHost}:${port}`);
+                // The SSH host exactly as the user addresses it (their ~/.ssh/config,
+                // incl. ProxyJump, applies). The attached window opens its own
+                // `ssh -W` pipe to the container, so it survives this window closing.
+                const wsAuthority = vscode.workspace.workspaceFolders?.[0]?.uri.authority || '';
+                const sshTarget = wsAuthority.replace(/^ssh-remote\+/, '');
+                if (!sshTarget) {
+                    throw new Error('Could not determine the SSH host of this window; re-open the folder via Remote-SSH');
+                }
 
-                // Container name rides along (hex-encoded) so container windows can
-                // label themselves instead of showing the generic "vscode-remote"
-                const nameHex = Buffer.from(container.name || 'container', 'utf8').toString('hex');
-                const authority = `cri-container+${localPort}-${token}-${nameHex}`;
+                // Optional fallback path for VS Code builds without managed connections
+                const localPort = await vscode.window.withProgress(
+                    { location: vscode.ProgressLocation.Notification, title: 'Preparing fallback forward...', cancellable: false },
+                    () => forwardRemotePort(targetHost, port, logger).catch((e) => {
+                        logger.warn(`Port forward failed (fallback disabled): ${(e as Error).message}`);
+                        return 0;
+                    }),
+                );
+                if (localPort > 0) { logger.info(`Fallback forward ready: 127.0.0.1:${localPort} -> ${targetHost}:${port}`); }
+
+                // Hex-encode free-form fields to keep the authority URI-safe
+                const enc = (s: string) => Buffer.from(s, 'utf8').toString('hex');
+                const authority = `cri-container+${token}-${port}-${localPort}-${enc(sshTarget)}-${enc(targetHost)}-${enc(container.name || 'container')}`;
                 const uri = vscode.Uri.parse(`vscode-remote://${authority}/`);
                 try {
                     await vscode.commands.executeCommand('vscode.openFolder', uri, { forceNewWindow: true });
                     logger.info('New window opening for container workspace');
                     vscode.window.showInformationMessage(
-                        `Attached to ${container.name} — new window opening. Keep this window open while using it.`,
+                        `Attached to ${container.name} — new window opening with its own connection; this window can be closed.`,
                     );
                 } catch (e) {
                     logger.warn(`openFolder failed: ${(e as Error).message}; falling back to browser`);
-                    const webUrl = `http://127.0.0.1:${localPort}/?tkn=${token}`;
-                    await vscode.env.openExternal(vscode.Uri.parse(webUrl));
-                    vscode.window.showInformationMessage(`Container workspace ready for ${container.name}: ${webUrl}`);
+                    if (localPort > 0) {
+                        const webUrl = `http://127.0.0.1:${localPort}/?tkn=${token}`;
+                        await vscode.env.openExternal(vscode.Uri.parse(webUrl));
+                        vscode.window.showInformationMessage(`Container workspace ready for ${container.name}: ${webUrl}`);
+                    } else {
+                        throw e;
+                    }
                 }
             } catch (err) {
                 const message = (err as Error).message;
